@@ -70,20 +70,44 @@ where
         }
     }
 
-    pub fn rows_equal<S: AsRef<str>>(
-        &mut self,
-        header: S,
-        item: &D::Item,
-    ) -> Option<RowsIter<'_, D>> {
+    pub fn rows_equal<S: AsRef<str>>(&self, header: S, item: &D::Item) -> RowsIter<'_, D> {
         if let Some(column) = self.headers.get(header.as_ref()) {
             let map = &self.indexes[column];
             let rows_indexes: VecDeque<usize> = map.get_all(item).map(|x| *x).collect();
-            Some(RowsIter {
+            RowsIter {
                 data: &self.data,
                 indexes: rows_indexes,
-            })
+            }
         } else {
-            None
+            RowsIter {
+                data: &self.data,
+                indexes: VecDeque::new(),
+            }
+        }
+    }
+
+    pub fn rows_filter<S: AsRef<str>, F>(&self, header: S, filter: F) -> RowsIter<'_, D>
+    where
+        F: FnMut(&&D::Item) -> bool,
+    {
+        if let Some(column) = self.headers.get(header.as_ref()) {
+            let map = &self.indexes[column];
+            let valid_keys: Vec<_> = map.keys().filter(filter).collect();
+
+            let rows_indexes: VecDeque<usize> = valid_keys
+                .into_iter()
+                .flat_map(|x| map.get_all(x))
+                .map(|x| *x)
+                .collect();
+            RowsIter {
+                data: &self.data,
+                indexes: rows_indexes,
+            }
+        } else {
+            RowsIter {
+                data: &self.data,
+                indexes: VecDeque::new(),
+            }
         }
     }
 
@@ -165,7 +189,6 @@ where
     }
 }
 
-
 pub struct RowsIter<'a, D> {
     data: &'a D,
     indexes: VecDeque<usize>,
@@ -182,7 +205,6 @@ impl<'a, D: Storage> Iterator for RowsIter<'a, D> {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -317,8 +339,28 @@ mod tests {
 
         example.add_index("two").unwrap();
 
-        let rows: Vec<_> = example.rows_equal("two", &5).unwrap().collect();
+        let rows: Vec<_> = example.rows_equal("two", &5).collect();
 
         assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn rows_filter() {
+        let mut example =
+            Tab::<VecBackend<u8>>::new().add_headers(vec!["one", "two", "three", "four"]);
+
+        example.push(vec![1, 4, 3, 4]);
+        example.push(vec![1, 5, 3, 4]);
+        example.push(vec![3, 5, 3, 4]);
+        example.push(vec![5, 6, 7, 8]);
+        example.push(vec![3, 6, 2, 1]);
+        example.push(vec![3, 5, 3, 4]);
+        example.push(vec![1, 2, 3, 4]);
+
+        example.add_index("two").unwrap();
+
+        let rows: Vec<_> = example.rows_filter("two", |x| *x % 2 == 0).collect();
+
+        assert_eq!(rows.len(), 4);
     }
 }

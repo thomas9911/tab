@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use tab::smallvec::smallvec;
     use tab::value::value;
     use tab::Value;
-    use tab::{SmallVecBackend, Tab, VecBackend};
+    use tab::{SmallVecBackend, Tab};
 
     #[test]
     fn from_csv() {
+        // generated with https://extendsclass.com/csv-generator.html
         let data = r#"
 id,firstname,lastname,email,email2,profession
 100,Sophia,Faro,Sophia.Faro@yopmail.com,Sophia.Faro@gmail.com,police officer
@@ -1024,26 +1024,25 @@ id,firstname,lastname,email,email2,profession
             )
         }
 
-        // println!("{:?}", my_tabular.headers);
-        // println!("{:?}", my_tabular.get(0));
-
-        // my_tabular.add_index("id").unwrap();
         my_tabular.add_index("profession").unwrap();
-
         my_tabular.sort("profession");
 
-        let rows = my_tabular
-            .rows_equal("profession", &value("doctor"))
-            .unwrap();
+        {
+            let rows = my_tabular.rows_equal("profession", &value("doctor"));
 
-        for row in rows {
-            println!("{:?}", row);
+            let my_result: Vec<_> = rows.collect();
+            assert_eq!(my_result.len(), 209)
         }
 
-        // println!("{:?}", my_tabular.indexes);
+        {
+            let rows = my_tabular.rows_filter("profession", |val| match val {
+                Value::String(src) => src.starts_with("fire"),
+                _ => false,
+            });
 
-        // println!("{:?}", my_tabular.get(0..5));
-
-        assert!(false)
+            let my_result: Vec<_> = rows.collect();
+            println!("{:?}", my_result);
+            assert_eq!(my_result.len(), 185)
+        }
     }
 }
